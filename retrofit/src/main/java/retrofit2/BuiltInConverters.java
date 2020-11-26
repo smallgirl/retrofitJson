@@ -125,4 +125,12 @@ final class BuiltInConverters extends Converter.Factory {
       return value.toString();
     }
   }
+  static final class ObjectConverter implements Converter<Object, Object> {
+    static final ObjectConverter INSTANCE = new ObjectConverter();
+
+    @Override
+    public Object convert(Object value) {
+      return value;
+    }
+  }
 }

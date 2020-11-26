@@ -80,6 +80,10 @@ public interface Converter<F, T> {
       return null;
     }
 
+    public @Nullable Converter<?, Object> objectConverter(
+            Type type, Annotation[] annotations, Retrofit retrofit) {
+      return null;
+    }
     /**
      * Extract the upper bound of the generic parameter at {@code index} from {@code type}. For
      * example, index 1 of {@code Map<String, ? extends Runnable>} returns {@code Runnable}.

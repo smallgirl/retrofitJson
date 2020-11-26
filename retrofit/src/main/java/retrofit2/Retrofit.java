@@ -15,8 +15,6 @@
  */
 package retrofit2;
 
-import static java.util.Collections.unmodifiableList;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -33,7 +31,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+
 import javax.annotation.Nullable;
+
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
@@ -42,6 +42,9 @@ import retrofit2.http.GET;
 import retrofit2.http.HTTP;
 import retrofit2.http.Header;
 import retrofit2.http.Url;
+import retrofit2.internal.JsonParse;
+
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Retrofit adapts a Java interface to HTTP calls by using annotations on the declared methods to
@@ -72,6 +75,7 @@ public final class Retrofit {
   final List<CallAdapter.Factory> callAdapterFactories;
   final @Nullable Executor callbackExecutor;
   final boolean validateEagerly;
+  final JsonParse jsonParse;
 
   Retrofit(
       okhttp3.Call.Factory callFactory,
@@ -79,13 +83,15 @@ public final class Retrofit {
       List<Converter.Factory> converterFactories,
       List<CallAdapter.Factory> callAdapterFactories,
       @Nullable Executor callbackExecutor,
-      boolean validateEagerly) {
+      boolean validateEagerly,
+      JsonParse jsonParse) {
     this.callFactory = callFactory;
     this.baseUrl = baseUrl;
     this.converterFactories = converterFactories; // Copy+unmodifiable at call site.
     this.callAdapterFactories = callAdapterFactories; // Copy+unmodifiable at call site.
     this.callbackExecutor = callbackExecutor;
     this.validateEagerly = validateEagerly;
+    this.jsonParse = jsonParse;
   }
 
   /**
@@ -405,7 +411,26 @@ public final class Retrofit {
     //noinspection unchecked
     return (Converter<T, String>) BuiltInConverters.ToStringConverter.INSTANCE;
   }
+  /**
+   * Returns a {@link Converter} for {@code type} to {@link String} from the available {@linkplain
+   * #converterFactories() factories}.
+   */
+  public <T> Converter<T, Object> objectConverter(Type type, Annotation[] annotations) {
+    Objects.requireNonNull(type, "type == null");
+    Objects.requireNonNull(annotations, "annotations == null");
 
+    for (int i = 0, count = converterFactories.size(); i < count; i++) {
+      Converter<?, Object> converter =
+              converterFactories.get(i).objectConverter(type, annotations, this);
+      if (converter != null) {
+        //noinspection unchecked
+        return (Converter<T, Object>) converter;
+      }
+    }
+    // Nothing matched. Resort to default converter which just calls toString().
+    //noinspection unchecked
+    return (Converter<T, Object>) BuiltInConverters.ObjectConverter.INSTANCE;
+  }
   /**
    * The executor used for {@link Callback} methods on a {@link Call}. This may be {@code null}, in
    * which case callbacks should be made synchronously on the background thread.
@@ -432,7 +457,7 @@ public final class Retrofit {
     private final List<CallAdapter.Factory> callAdapterFactories = new ArrayList<>();
     private @Nullable Executor callbackExecutor;
     private boolean validateEagerly;
-
+    private JsonParse jsonParse;
     Builder(Platform platform) {
       this.platform = platform;
     }
@@ -611,6 +636,10 @@ public final class Retrofit {
       this.validateEagerly = validateEagerly;
       return this;
     }
+    public Builder jsonParse(JsonParse jsonParse) {
+      this.jsonParse = jsonParse;
+      return this;
+    }
 
     /**
      * Create the {@link Retrofit} instance using the configured values.
@@ -654,7 +683,8 @@ public final class Retrofit {
           unmodifiableList(converterFactories),
           unmodifiableList(callAdapterFactories),
           callbackExecutor,
-          validateEagerly);
+          validateEagerly,
+          jsonParse);
     }
   }
 }

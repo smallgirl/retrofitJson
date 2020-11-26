@@ -5,13 +5,38 @@ A type-safe HTTP client for Android and Java.
 
 For more information please see [the website][1].
 
+添加post json支持 基于retrofit 2.9.0
+
+```java
+  Retrofit.Builder()
+                .client(createOkHttpClient())
+                .addConverterFactory(null != factory ? factory : GsonConverterFactory.create())
+                .baseUrl(TextUtils.isEmpty(baseUrl) ? RetrofitClient.baseUrl : baseUrl)
+                .jsonParse(object -> new Gson().toJson(object))
+                .build();
+
+    @JsonEncoded
+    @POST(UrlConfig.LOGIN_CHECK)
+    suspend fun loginCheck(
+        @Header("token") token: String?,
+        @JsonField("hid") hid: String,
+        @JsonField("versionCode") versionCode: String,
+        @JsonField("deviceModel") deviceModel: String?,
+        @JsonField("os") os: String = "android",
+        @JsonField("oldHid") oldHid: String?,
+        @JsonField("mandatoryUpLearnHd") mandatoryUpLearnHd: Int = 0,
+        @JsonField("pctype") pcType: String = "3"
+    ): DataNull
+```
 
 Download
+
 --------
 
-Download [the latest JAR][2] or grab from Maven central at the coordinates `com.squareup.retrofit2:retrofit:2.9.0`.
-
-Snapshots of the development version are available in [Sonatype's `snapshots` repository][snap].
+Gradle:
+```groovy
+compile 'com.jiandan.retrofit2:1.0.0'
+```
 
 Retrofit requires at minimum Java 8+ or Android API 21+.
 

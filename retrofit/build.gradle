@@ -1,6 +1,7 @@
 apply plugin: 'java-library'
 apply plugin: 'org.jetbrains.kotlin.jvm'
-
+apply plugin: 'maven'//用于发布本地 maven 仓库中
+apply plugin: 'com.novoda.bintray-release'
 dependencies {
   api "com.squareup.okhttp3:okhttp:3.14.9"
 
@@ -12,4 +13,29 @@ dependencies {
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
 }
+////加载资源
+Properties properties = new Properties()
+InputStream inputStream = project.rootProject.file('local.properties').newDataInputStream()
+properties.load( inputStream )
 
+def version = '1.0.0'//版本号
+def groupName = 'com.jiandan'//组名
+def artifactName = 'retrofit'//项目名
+
+publish {
+  userOrg = 'haitaocode'
+  groupId =  "${groupName}"
+  artifactId = "${artifactName}"
+  publishVersion = "${version}"
+  desc = 'retrofit json '
+  website = 'https://github.com/smallgirl/retrofitJson.git'
+  bintrayUser = properties.getProperty("bintray.user") // bintray.com的用户名
+  bintrayKey = properties.getProperty("bintray.apikey")   // bintray.com的API key
+}
+
+
+// Mac OS
+//./gradlew clean build  bintrayUpload -PdryRun=false
+// Windows
+//gradlew clean build  bintrayUpload -PdryRun=false
+//./gradlew clean build bintrayUpload -PbintrayUser=BINTRAY_USERNAME -PbintrayKey=BINTRAY_KEY -PdryRun=false

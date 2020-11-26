@@ -446,4 +446,20 @@ abstract class ParameterHandler<T> {
       builder.addTag(cls, value);
     }
   }
+  static final class JSONField<T> extends ParameterHandler<T> {
+    private final String name;
+    private final Converter<T, Object> valueConverter;
+
+    JSONField(String name, Converter<T, Object> valueConverter) {
+      this.name =  Objects.requireNonNull(name, "name == null");
+      this.valueConverter = valueConverter;
+    }
+
+    @Override void apply(RequestBuilder builder, @Nullable T value) throws IOException {
+      if (value == null) return; // Skip null values.
+      Object object = valueConverter.convert(value);
+      if (object == null) return; // Skip converted but null values
+      builder.addJSONField(name, object);
+    }
+  }
 }

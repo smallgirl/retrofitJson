@@ -16,8 +16,11 @@
 package retrofit2;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nullable;
+
 import okhttp3.FormBody;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -27,13 +30,15 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okio.Buffer;
 import okio.BufferedSink;
+import retrofit2.internal.JsonParse;
 
 final class RequestBuilder {
   private static final char[] HEX_DIGITS = {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
   };
   private static final String PATH_SEGMENT_ALWAYS_ENCODE_SET = " \"<>^`{}|\\?#";
-
+  private static final MediaType CONTENT_TYPE_JSON =
+          MediaType.parse("application/json;charset=UTF-8");
   /**
    * Matches strings that contain {@code .} or {@code ..} as a complete path segment. This also
    * matches dots in their percent-encoded form, {@code %2E}.
@@ -63,7 +68,8 @@ final class RequestBuilder {
   private @Nullable MultipartBody.Builder multipartBuilder;
   private @Nullable FormBody.Builder formBuilder;
   private @Nullable RequestBody body;
-
+  private @Nullable HashMap<String, Object> jsonMap;
+  private JsonParse jsonParse;
   RequestBuilder(
       String method,
       HttpUrl baseUrl,
@@ -72,13 +78,16 @@ final class RequestBuilder {
       @Nullable MediaType contentType,
       boolean hasBody,
       boolean isFormEncoded,
-      boolean isMultipart) {
+      boolean isMultipart,
+      boolean isJsonEncoded,
+      JsonParse jsonParse) {
     this.method = method;
     this.baseUrl = baseUrl;
     this.relativeUrl = relativeUrl;
     this.requestBuilder = new Request.Builder();
     this.contentType = contentType;
     this.hasBody = hasBody;
+    this.jsonParse = jsonParse;
 
     if (headers != null) {
       headersBuilder = headers.newBuilder();
@@ -93,6 +102,9 @@ final class RequestBuilder {
       // Will be set to 'body' in 'build'.
       multipartBuilder = new MultipartBody.Builder();
       multipartBuilder.setType(MultipartBody.FORM);
+    }else if (isJsonEncoded) {
+      // Will be set to 'body' in 'build'.
+      jsonMap = new HashMap<>();
     }
   }
 
@@ -250,6 +262,12 @@ final class RequestBuilder {
         body = formBuilder.build();
       } else if (multipartBuilder != null) {
         body = multipartBuilder.build();
+      } else if (jsonMap != null) {
+        if (null == jsonParse){
+          body = RequestBody.create(CONTENT_TYPE_JSON, Utils.toJSONString(jsonMap));
+        }else {
+          body = RequestBody.create(CONTENT_TYPE_JSON, jsonParse.toJson(jsonMap));
+        }
       } else if (hasBody) {
         // Body is absent, make an empty body.
         body = RequestBody.create(null, new byte[0]);
@@ -267,7 +285,10 @@ final class RequestBuilder {
 
     return requestBuilder.url(url).headers(headersBuilder.build()).method(method, body);
   }
-
+  @SuppressWarnings("ConstantConditions") // Only called when isSimpleJSON was true.
+  void addJSONField(String name, Object value) {
+    jsonMap.put(name, value);
+  }
   private static class ContentTypeOverridingRequestBody extends RequestBody {
     private final RequestBody delegate;
     private final MediaType contentType;

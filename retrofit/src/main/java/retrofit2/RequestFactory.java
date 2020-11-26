@@ -15,9 +15,6 @@
  */
 package retrofit2;
 
-import static retrofit2.Utils.methodError;
-import static retrofit2.Utils.parameterError;
-
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -31,7 +28,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nullable;
+
 import kotlin.coroutines.Continuation;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -59,8 +58,14 @@ import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
 import retrofit2.http.QueryName;
+import retrofit2.http.JsonEncoded;
+import retrofit2.http.JsonField;
 import retrofit2.http.Tag;
 import retrofit2.http.Url;
+import retrofit2.internal.JsonParse;
+
+import static retrofit2.Utils.methodError;
+import static retrofit2.Utils.parameterError;
 
 final class RequestFactory {
   static RequestFactory parseAnnotations(Retrofit retrofit, Method method) {
@@ -78,7 +83,8 @@ final class RequestFactory {
   private final boolean isMultipart;
   private final ParameterHandler<?>[] parameterHandlers;
   final boolean isKotlinSuspendFunction;
-
+  private boolean isJsonEncoded;
+  private JsonParse jsonParse;
   RequestFactory(Builder builder) {
     method = builder.method;
     baseUrl = builder.retrofit.baseUrl;
@@ -89,6 +95,8 @@ final class RequestFactory {
     hasBody = builder.hasBody;
     isFormEncoded = builder.isFormEncoded;
     isMultipart = builder.isMultipart;
+    isJsonEncoded = builder.isJsonEncoded;
+    jsonParse = builder.retrofit.jsonParse;
     parameterHandlers = builder.parameterHandlers;
     isKotlinSuspendFunction = builder.isKotlinSuspendFunction;
   }
@@ -116,7 +124,9 @@ final class RequestFactory {
             contentType,
             hasBody,
             isFormEncoded,
-            isMultipart);
+            isMultipart,
+            isJsonEncoded,
+            jsonParse);
 
     if (isKotlinSuspendFunction) {
       // The Continuation is the last parameter and the handlers array contains null at that index.
@@ -157,10 +167,12 @@ final class RequestFactory {
     boolean gotQueryName;
     boolean gotQueryMap;
     boolean gotUrl;
+    boolean gotJsonField;
     @Nullable String httpMethod;
     boolean hasBody;
     boolean isFormEncoded;
     boolean isMultipart;
+    boolean isJsonEncoded;
     @Nullable String relativeUrl;
     @Nullable Headers headers;
     @Nullable MediaType contentType;
@@ -197,6 +209,12 @@ final class RequestFactory {
               "FormUrlEncoded can only be specified on HTTP methods with "
                   + "request body (e.g., @POST).");
         }
+        if (isJsonEncoded) {
+          throw methodError(
+                  method,
+                  "SimpleJSON can only be specified on HTTP methods with "
+                  + "request body (e.g., @POST).");
+        }
       }
 
       int parameterCount = parameterAnnotationsArray.length;
@@ -218,7 +236,9 @@ final class RequestFactory {
       if (isMultipart && !gotPart) {
         throw methodError(method, "Multipart method must contain at least one @Part.");
       }
-
+      if (isJsonEncoded && !gotJsonField) {
+        throw methodError(method,"SimpleJSON method must contain at least one @SimpleJSONField.");
+      }
       return new RequestFactory(this);
     }
 
@@ -252,10 +272,15 @@ final class RequestFactory {
         }
         isMultipart = true;
       } else if (annotation instanceof FormUrlEncoded) {
-        if (isMultipart) {
+        if (isMultipart || isJsonEncoded) {
           throw methodError(method, "Only one encoding annotation is allowed.");
         }
         isFormEncoded = true;
+      }else if (annotation instanceof JsonEncoded) {
+        if (isMultipart || isFormEncoded) {
+          throw methodError(method, "Only one encoding annotation is allowed.");
+        }
+        isJsonEncoded = true;
       }
     }
 
@@ -803,6 +828,45 @@ final class RequestFactory {
         }
 
         return new ParameterHandler.Tag<>(tagType);
+      }else if (annotation instanceof JsonField) {
+        if (!isJsonEncoded) {
+          throw parameterError(
+                  method,
+                  p,
+                  "@SimpleJSONField parameters can only be used with SimpleJSON encoding.");
+        }
+        JsonField simpleJSONField = (JsonField) annotation;
+        String name = simpleJSONField.value();
+
+        Class<?> rawParameterType = Utils.getRawType(type);
+        gotJsonField = true;
+        if (Iterable.class.isAssignableFrom(rawParameterType)) {
+          if (!(type instanceof ParameterizedType)) {
+            throw parameterError(
+                    method,
+                    p,rawParameterType.getSimpleName()
+                    + " must include generic type (e.g., "
+                    + rawParameterType.getSimpleName()
+                    + "<String>)");
+          }
+
+          ParameterizedType parameterizedType = (ParameterizedType) type;
+          Type iterableType = Utils.getParameterUpperBound(0, parameterizedType);
+          Converter<?, Object> converter =
+                  retrofit.objectConverter(iterableType, annotations);
+          return new ParameterHandler.JSONField<>(name, converter);
+        } else if (rawParameterType.isArray()) {
+
+          Class<?> arrayComponentType = boxIfPrimitive(rawParameterType.getComponentType());
+          Converter<?, Object> converter =
+                  retrofit.objectConverter(arrayComponentType, annotations);
+          return new ParameterHandler.JSONField<>(name, converter);
+        } else {
+          Converter<?,  Object> converter =
+                  retrofit.objectConverter(type, annotations);
+          return new ParameterHandler.JSONField<>(name, converter);
+        }
+
       }
 
       return null; // Not a Retrofit annotation.
