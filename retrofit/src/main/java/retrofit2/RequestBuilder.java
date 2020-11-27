@@ -285,7 +285,7 @@ final class RequestBuilder {
 
     return requestBuilder.url(url).headers(headersBuilder.build()).method(method, body);
   }
-  @SuppressWarnings("ConstantConditions") // Only called when isSimpleJSON was true.
+  @SuppressWarnings("ConstantConditions") // Only called when isJsonEncoded was true.
   void addJSONField(String name, Object value) {
     jsonMap.put(name, value);
   }

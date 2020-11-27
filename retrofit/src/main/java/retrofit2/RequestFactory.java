@@ -212,7 +212,7 @@ final class RequestFactory {
         if (isJsonEncoded) {
           throw methodError(
                   method,
-                  "SimpleJSON can only be specified on HTTP methods with "
+                  "JsonEncoded can only be specified on HTTP methods with "
                   + "request body (e.g., @POST).");
         }
       }
@@ -237,7 +237,7 @@ final class RequestFactory {
         throw methodError(method, "Multipart method must contain at least one @Part.");
       }
       if (isJsonEncoded && !gotJsonField) {
-        throw methodError(method,"SimpleJSON method must contain at least one @SimpleJSONField.");
+        throw methodError(method,"JsonEncoded method must contain at least one @JSONField.");
       }
       return new RequestFactory(this);
     }
@@ -833,13 +833,13 @@ final class RequestFactory {
           throw parameterError(
                   method,
                   p,
-                  "@SimpleJSONField parameters can only be used with SimpleJSON encoding.");
+                  "@JSONField parameters can only be used with JsonEncoded encoding.");
         }
         JsonField simpleJSONField = (JsonField) annotation;
         String name = simpleJSONField.value();
 
         Class<?> rawParameterType = Utils.getRawType(type);
-        gotJsonField = true;
+
         if (Iterable.class.isAssignableFrom(rawParameterType)) {
           if (!(type instanceof ParameterizedType)) {
             throw parameterError(
@@ -849,7 +849,7 @@ final class RequestFactory {
                     + rawParameterType.getSimpleName()
                     + "<String>)");
           }
-
+          gotJsonField = true;
           ParameterizedType parameterizedType = (ParameterizedType) type;
           Type iterableType = Utils.getParameterUpperBound(0, parameterizedType);
           Converter<?, Object> converter =

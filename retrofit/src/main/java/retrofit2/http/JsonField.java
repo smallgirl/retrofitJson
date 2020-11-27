@@ -11,7 +11,7 @@ import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Named pair for a SimpleJSON request.
+ * Named pair for a JsonEncoded request.
  * <p>
  * Values are converted to strings using {@link Retrofit#stringConverter(Type, Annotation[])}
  * (or {@link Object#toString()}, if no matching string converter is installed)
@@ -20,7 +20,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * <p>
  * Simple Example:
  * <pre><code>
- * &#64;SimpleJSON
+ * &#64;JsonEncoded
  * &#64;POST("/login")
  * Call&lt;ResponseBody&gt; login(
  *     &#64;JsonField("username") String username,
@@ -36,6 +36,6 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target(PARAMETER)
 @Retention(RUNTIME)
 public @interface JsonField {
-    /** The SimpleJSON filed name. */
+    /** The JsonEncoded filed name. */
     String value();
 }
